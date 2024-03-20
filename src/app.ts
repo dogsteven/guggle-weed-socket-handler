@@ -243,49 +243,73 @@ import ConnectionRepository from "./connection-repository";
       case "producerClosed":
         {
           const { meetingId, attendeeId, producerType, producerId } = payload;
-          socketServer.to(meetingId).emit("producerClosed", {
-            attendeeId, producerType, producerId
-          });
+          const socketId = connectionRepository.getSocketId(meetingId, attendeeId);
+
+          if (socketId) {
+            socketServer.to(socketId).emit("producerClosed", {
+              producerType, producerId
+            });
+          }
         }
         break;
       case "producerPaused":
         {
           const { meetingId, attendeeId, producerType, producerId } = payload;
-          socketServer.to(meetingId).emit("producerPaused", {
-            attendeeId, producerType, producerId
-          });
+          const socketId = connectionRepository.getSocketId(meetingId, attendeeId);
+
+          if (socketId) {
+            socketServer.to(socketId).emit("producerPaused", {
+              producerType, producerId
+            });
+          }
         }
         break;
       case "producerResumed":
         {
           const { meetingId, attendeeId, producerType, producerId } = payload;
-          socketServer.to(meetingId).emit("producerResumed", {
-            attendeeId, producerType, producerId
-          });
+          const socketId = connectionRepository.getSocketId(meetingId, attendeeId);
+
+          if (socketId) {
+            socketServer.to(socketId).emit("producerResumed", {
+              producerType, producerId
+            });
+          }
         }
         break;
       case "consumerClosed":
         {
           const { meetingId, attendeeId, consumerId } = payload;
-          socketServer.to(meetingId).emit("consumerClosed", {
-            attendeeId, consumerId
-          });
-        }
-        break;
-        case "consumerPaused":
-          {
-            const { meetingId, attendeeId, consumerId } = payload;
-            socketServer.to(meetingId).emit("consumerPaused", {
-              attendeeId, consumerId
+          const socketId = connectionRepository.getSocketId(meetingId, attendeeId);
+
+          if (socketId) {
+            socketServer.to(socketId).emit("consumerClosed", {
+              consumerId
             });
           }
-          break;
+        }
+        break;
+      case "consumerPaused":
+        {
+          const { meetingId, attendeeId, consumerId } = payload;
+          const socketId = connectionRepository.getSocketId(meetingId, attendeeId);
+
+          if (socketId) {
+            socketServer.to(socketId).emit("consumerPaused", {
+              consumerId
+            });
+          }
+        }
+        break;
       case "consumerResumed":
         {
           const { meetingId, attendeeId, consumerId } = payload;
-          socketServer.to(meetingId).emit("consumerResumed", {
-            attendeeId, consumerId
-          });
+          const socketId = connectionRepository.getSocketId(meetingId, attendeeId);
+
+          if (socketId) {
+            socketServer.to(socketId).emit("consumerResumed", {
+              consumerId
+            });
+          }
         }
         break;  
     }
