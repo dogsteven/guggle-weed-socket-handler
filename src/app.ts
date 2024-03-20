@@ -5,14 +5,48 @@ import { DefaultEventsMap } from "socket.io/dist/typed-events";
 import MediaBrokerClient from "./media-broker-client";
 import { createClient } from "redis";
 import configuration from "./configuration";
+import ConnectionRepository from "./connection-repository";
 
 (async () => {
   const application = express();
   const httpServer = createHttpServer(application);
   const socketServer = new SocketServer(httpServer);
   const mediaBrokerClient = new MediaBrokerClient();
+  const connectionRepository = new ConnectionRepository();
   const redisSubscriber = createClient();
   await redisSubscriber.connect();
+
+  application.get("/meetings/:meetingId", async (request, response) => {
+    const meetingId = request.params.meetingId;
+
+    response.json(await mediaBrokerClient.getMeetingInfo(meetingId));
+  });
+
+  application.post("/meetings/start", async (request, response) => {
+    const username = request.headers["x-username"];
+
+    const startingResult = await mediaBrokerClient.startMeeting(username);
+
+    if (startingResult.status === "success") {
+      connectionRepository.openMeeting(startingResult.data.meetingId);
+    }
+
+    response.json(startingResult);
+  });
+
+  application.post("/meetings/:meetingId/end", async (request, response) => {
+    const username = request.headers["x-username"];
+    const meetingId = request.params.meetingId;
+
+    const endingResult = await mediaBrokerClient.endMeeting(meetingId, username);
+
+    if (endingResult.status === "success") {
+      connectionRepository.closeMeeting(meetingId);
+      socketServer.to(meetingId).emit("meetingEnded");
+    }
+
+    response.json(endingResult);
+  });
 
   socketServer.on("connection", (socket: Socket<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, { meetingId?: any }>) => {
     const username = socket.handshake.headers["x-username"];
@@ -25,35 +59,12 @@ import configuration from "./configuration";
       if (socket.data.meetingId) {
         await mediaBrokerClient.leaveMeeting(socket.data.meetingId, username);
 
-        socket.data.meetingId = undefined;
+        connectionRepository.closeAttendee(socket.data.meetingId, username);
+
         socket.leave(socket.data.meetingId);
-        socketServer.to(socket.data.meetingId).emit("attendeeLeft", {
+
+        socketServer.to(socket.data.meetingId).emit("attendeeDisconnected", {
           attendeeId: username
-        });
-      }
-    });
-
-    socket.on("getMeetingInfo", async ({ meetingId }, callback) => {
-      callback(await mediaBrokerClient.getMeetingInfo(meetingId));
-    });
-
-    socket.on("startMeeting", async (_, callback) => {
-      callback(await mediaBrokerClient.startMeeting(username));
-    });
-
-    socket.on("endMeeting", async (_, callback) => {
-      if (socket.data.meetingId) {
-        const endingResult = await mediaBrokerClient.endMeeting(socket.data.meetingId, username);
-
-        if (endingResult.status === "success") {
-          socketServer.to(socket.data.meetingId).emit("meetingEnded");
-        }
-
-        callback(endingResult);
-      } else {
-        callback({
-          status: "failed",
-          message: `You haven't joined a meeting yet`
         });
       }
     });
@@ -70,8 +81,11 @@ import configuration from "./configuration";
       const joiningResult = await mediaBrokerClient.joinMeeting(meetingId, username);
 
       if (joiningResult.status === "success") {
-        socket.data.meetingId = meetingId;
         socket.join(meetingId);
+        socket.data.meetingId = meetingId;
+
+        connectionRepository.openAttendee(meetingId, username, socket.id);
+
         socketServer.to(meetingId).emit("attendeeJoined", {
           attendeeId: username
         });
@@ -104,11 +118,15 @@ import configuration from "./configuration";
       const leavingResult = await mediaBrokerClient.leaveMeeting(socket.data.meetingId, username);
 
       if (leavingResult.status === "success") {
-        socket.data.meetingId = undefined;
+        connectionRepository.closeAttendee(socket.data.meetingId, username);
+
         socket.leave(socket.data.meetingId);
+
         socketServer.to(socket.data.meetingId).emit("attendeeLeft", {
           attendeeId: username
         });
+
+        socket.data.meetingId = undefined;
       }
 
       callback(leavingResult);
@@ -274,6 +292,6 @@ import configuration from "./configuration";
   });
 
   httpServer.listen(configuration.server.listenPort, () => {
-    console.log(`Server is running at http://${configuration.server.listenPort}:${configuration.server.listenPort}`);
+    console.log(`Server is running at http://${configuration.server.listenIp}:${configuration.server.listenPort}`);
   });
 })()
