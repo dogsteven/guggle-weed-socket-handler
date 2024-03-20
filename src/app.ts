@@ -4,6 +4,7 @@ import { Socket, Server as SocketServer } from "socket.io";
 import { DefaultEventsMap } from "socket.io/dist/typed-events";
 import MediaBrokerClient from "./media-broker-client";
 import { createClient } from "redis";
+import configuration from "./configuration";
 
 (async () => {
   const application = express();
@@ -272,5 +273,7 @@ import { createClient } from "redis";
     }
   });
 
-  httpServer.listen(8000);
+  httpServer.listen(configuration.server.listenPort, () => {
+    console.log(`Server is running at http://${configuration.server.listenPort}:${configuration.server.listenPort}`);
+  });
 })()
