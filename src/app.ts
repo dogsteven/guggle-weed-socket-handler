@@ -55,6 +55,15 @@ import ConnectionRepository from "./connection-repository";
       socket.disconnect(true);
     }
 
+    socket.on("sendMessage", ({ message }) => {
+      if (socket.data.meetingId) {
+        socketServer.to(socket.data.meetingId).emit("messageSent", {
+          attendeeId: username,
+          message: message
+        });
+      }
+    });
+
     socket.on("disconnect", async () => {
       if (socket.data.meetingId) {
         await mediaBrokerClient.leaveMeeting(socket.data.meetingId, username);
