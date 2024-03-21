@@ -58,7 +58,7 @@ import ConnectionRepository from "./connection-repository";
     socket.on("sendMessage", ({ message }) => {
       if (socket.data.meetingId) {
         socketServer.to(socket.data.meetingId).emit("messageSent", {
-          attendeeId: username,
+          sender: username,
           message: message
         });
       }
@@ -247,42 +247,6 @@ import ConnectionRepository from "./connection-repository";
           socketServer.to(meetingId).emit("attendeeError", {
             attendeId
           });
-        }
-        break;
-      case "producerClosed":
-        {
-          const { meetingId, attendeeId, producerType, producerId } = payload;
-          const socketId = connectionRepository.getSocketId(meetingId, attendeeId);
-
-          if (socketId) {
-            socketServer.to(socketId).emit("producerClosed", {
-              producerType, producerId
-            });
-          }
-        }
-        break;
-      case "producerPaused":
-        {
-          const { meetingId, attendeeId, producerType, producerId } = payload;
-          const socketId = connectionRepository.getSocketId(meetingId, attendeeId);
-
-          if (socketId) {
-            socketServer.to(socketId).emit("producerPaused", {
-              producerType, producerId
-            });
-          }
-        }
-        break;
-      case "producerResumed":
-        {
-          const { meetingId, attendeeId, producerType, producerId } = payload;
-          const socketId = connectionRepository.getSocketId(meetingId, attendeeId);
-
-          if (socketId) {
-            socketServer.to(socketId).emit("producerResumed", {
-              producerType, producerId
-            });
-          }
         }
         break;
       case "consumerClosed":
