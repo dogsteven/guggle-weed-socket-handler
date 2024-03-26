@@ -6,6 +6,7 @@ import MediaBrokerClient from "./media-broker-client";
 import { createClient } from "redis";
 import configuration from "./configuration";
 import ConnectionRepository from "./connection-repository";
+import { wrapResultAsync } from "./utils/result";
 
 (async () => {
   const application = express();
@@ -17,35 +18,37 @@ import ConnectionRepository from "./connection-repository";
   await redisSubscriber.connect();
 
   application.get("/meetings/:meetingId", async (request, response) => {
-    const meetingId = request.params.meetingId;
+    response.json(await wrapResultAsync(async () => {
+      const meetingId = request.params.meetingId;
 
-    response.json(await mediaBrokerClient.getMeetingInfo(meetingId));
+      return await mediaBrokerClient.getMeetingInfo(meetingId);
+    }));
   });
 
   application.post("/meetings/start", async (request, response) => {
-    const username = request.headers["x-username"];
+    response.json(await wrapResultAsync(async () => {
+      const username = request.headers["x-username"];
 
-    const startingResult = await mediaBrokerClient.startMeeting(username);
+      const result = await mediaBrokerClient.startMeeting(username);
 
-    if (startingResult.status === "success") {
-      connectionRepository.openMeeting(startingResult.data.meetingId);
-    }
+      connectionRepository.openMeeting(result.meetingId);
 
-    response.json(startingResult);
+      return result;
+    }));
   });
 
   application.post("/meetings/:meetingId/end", async (request, response) => {
-    const username = request.headers["x-username"];
-    const meetingId = request.params.meetingId;
+    response.json(await wrapResultAsync(async () => {
+      const username = request.headers["x-username"];
+      const meetingId = request.params.meetingId;
 
-    const endingResult = await mediaBrokerClient.endMeeting(meetingId, username);
+      const result = await mediaBrokerClient.endMeeting(meetingId, username);
 
-    if (endingResult.status === "success") {
       connectionRepository.closeMeeting(meetingId);
       socketServer.to(meetingId).emit("meetingEnded");
-    }
 
-    response.json(endingResult);
+      return result;
+    }));
   });
 
   socketServer.on("connection", (socket: Socket<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, { meetingId?: any }>) => {
@@ -66,7 +69,11 @@ import ConnectionRepository from "./connection-repository";
 
     socket.on("disconnect", async () => {
       if (socket.data.meetingId) {
-        await mediaBrokerClient.leaveMeeting(socket.data.meetingId, username);
+        try {
+          await mediaBrokerClient.leaveMeeting(socket.data.meetingId, username);
+        } catch (error) {
+          console.error(error);
+        }
 
         connectionRepository.closeAttendee(socket.data.meetingId, username);
 
@@ -79,17 +86,13 @@ import ConnectionRepository from "./connection-repository";
     });
 
     socket.on("joinMeeting", async ({ meetingId }, callback) => {
-      if (socket.data.meetingId) {
-        callback({
-          status: "failed",
-          message: "You have already joined a meeting"
-        });
-        return;
-      }
-
-      const joiningResult = await mediaBrokerClient.joinMeeting(meetingId, username);
-
-      if (joiningResult.status === "success") {
+      callback(await wrapResultAsync(async () => {
+        if (socket.data.meetingId) {
+          throw "You have already joined a meeting";
+        }
+  
+        const result = await mediaBrokerClient.joinMeeting(meetingId, username);
+  
         socket.join(meetingId);
         socket.data.meetingId = meetingId;
 
@@ -98,142 +101,117 @@ import ConnectionRepository from "./connection-repository";
         socketServer.to(meetingId).emit("attendeeJoined", {
           attendeeId: username
         });
-      }
-
-      callback(joiningResult);
+  
+        return result;
+      }));
     });
 
     socket.on("connectTransport", async ({ transportType, dtlsParameters }, callback) => {
-      if (!socket.data.meetingId) {
-        callback({
-          status: "failed",
-          message: "You haven't join a meeting yet"
-        });
-        return;
-      }
-
-      callback(await mediaBrokerClient.connectTransport(socket.data.meetingId, username, transportType, dtlsParameters));
+      callback(await wrapResultAsync(async () => {
+        if (!socket.data.meetingId) {
+          throw "You haven't join a meeting yet";
+        }
+  
+        return await mediaBrokerClient.connectTransport(socket.data.meetingId, username, transportType, dtlsParameters);
+      }));
     });
 
     socket.on("leaveMeeting", async (_, callback) => {
-      if (!socket.data.meetingId) {
-        callback({
-          status: "failed",
-          message: "You haven't join a meeting yet"
-        });
-        return;
-      }
-
-      const leavingResult = await mediaBrokerClient.leaveMeeting(socket.data.meetingId, username);
-
-      if (leavingResult.status === "success") {
+      callback(await wrapResultAsync(async () => {
+        if (!socket.data.meetingId) {
+          throw "You haven't join a meeting yet";
+        }
+  
+        const result = await mediaBrokerClient.leaveMeeting(socket.data.meetingId, username);
+  
         connectionRepository.closeAttendee(socket.data.meetingId, username);
 
         socket.leave(socket.data.meetingId);
-
         socketServer.to(socket.data.meetingId).emit("attendeeLeft", {
           attendeeId: username
         });
 
         socket.data.meetingId = undefined;
-      }
-
-      callback(leavingResult);
+  
+        return result;
+      }));
     });
 
     socket.on("produceMedia", async ({ appData, rtpParameters }, callback) => {
-      if (!socket.data.meetingId) {
-        callback({
-          status: "failed",
-          message: "You haven't join a meeting yet"
-        });
-        return;
-      }
-
-      const producerResult = await mediaBrokerClient.produceMedia(socket.data.meetingId, username, appData, rtpParameters);
-
-      if (producerResult.status === "success") {
-        const producerId = producerResult.data.producerId;
-
+      callback(await wrapResultAsync(async () => {
+        if (!socket.data.meetingId) {
+          throw "You haven't join a meeting yet";
+        }
+  
+        const result = await mediaBrokerClient.produceMedia(socket.data.meetingId, username, appData, rtpParameters);
+        
         socketServer.to(socket.data.meetingId).emit("producerCreated", {
           attendeeId: username,
-          producerId: producerId
+          producerId: result.producerId
         });
-      }
-
-      callback(producerResult);
+  
+        return result;
+      }));
     });
 
     socket.on("closeProducer", async ({ producerType }, callback) => {
-      if (!socket.data.meetingId) {
-        callback({
-          status: "failed",
-          message: "You haven't join a meeting yet"
-        });
-        return;
-      }
-
-      callback(await mediaBrokerClient.closeProducer(socket.data.meetingId, username, producerType));
+      callback(await wrapResultAsync(async () => {
+        if (!socket.data.meetingId) {
+          throw "You haven't join a meeting yet";
+        }
+  
+        return await mediaBrokerClient.closeProducer(socket.data.meetingId, username, producerType);
+      }));
     });
 
     socket.on("pauseProducer", async ({ producerType }, callback) => {
-      if (!socket.data.meetingId) {
-        callback({
-          status: "failed",
-          message: "You haven't join a meeting yet"
-        });
-        return;
-      }
-
-      callback(await mediaBrokerClient.pauseProducer(socket.data.meetingId, username, producerType));
+      callback(await wrapResultAsync(async () => {
+        if (!socket.data.meetingId) {
+          throw "You haven't join a meeting yet";
+        }
+  
+        return await mediaBrokerClient.pauseProducer(socket.data.meetingId, username, producerType);
+      }));
     });
 
     socket.on("resumeProducer", async ({ producerType }, callback) => {
-      if (!socket.data.meetingId) {
-        callback({
-          status: "failed",
-          message: "You haven't join a meeting yet"
-        });
-        return;
-      }
-
-      callback(await mediaBrokerClient.resumeProducer(socket.data.meetingId, username, producerType));
+      callback(await wrapResultAsync(async () => {
+        if (!socket.data.meetingId) {
+          throw "You haven't join a meeting yet";
+        }
+  
+        return await mediaBrokerClient.resumeProducer(socket.data.meetingId, username, producerType);
+      }));
     });
 
     socket.on("consumeMedia", async ({ producerId, rtpCapabilities }, callback) => {
-      if (!socket.data.meetingId) {
-        callback({
-          status: "failed",
-          message: "You haven't join a meeting yet"
-        });
-        return;
-      }
-
-      callback(await mediaBrokerClient.consumeMedia(socket.data.meetingId, username, producerId, rtpCapabilities));
+      callback(await wrapResultAsync(async () => {
+        if (!socket.data.meetingId) {
+          throw "You haven't join a meeting yet";
+        }
+  
+        return await mediaBrokerClient.consumeMedia(socket.data.meetingId, username, producerId, rtpCapabilities);
+      }));
     });
 
     socket.on("pauseConsumer", async ({ consumerId }, callback) => {
-      if (!socket.data.meetingId) {
-        callback({
-          status: "failed",
-          message: "You haven't join a meeting yet"
-        });
-        return;
-      }
-
-      callback(await mediaBrokerClient.pauseConsumer(socket.data.meetingId, username, consumerId));
+      callback(await wrapResultAsync(async () => {
+        if (!socket.data.meetingId) {
+          throw "You haven't join a meeting yet";
+        }
+  
+        return await mediaBrokerClient.pauseConsumer(socket.data.meetingId, username, consumerId);
+      }));
     });
 
     socket.on("resumeConsumer", async ({ consumerId }, callback) => {
-      if (!socket.data.meetingId) {
-        callback({
-          status: "failed",
-          message: "You haven't join a meeting yet"
-        });
-        return;
-      }
-
-      callback(await mediaBrokerClient.resumeConsumer(socket.data.meetingId, username, consumerId));
+      callback(await wrapResultAsync(async () => {
+        if (!socket.data.meetingId) {
+          throw "You haven't join a meeting yet";
+        }
+  
+        return await mediaBrokerClient.resumeConsumer(socket.data.meetingId, username, consumerId);
+      }));
     });
   });
 
