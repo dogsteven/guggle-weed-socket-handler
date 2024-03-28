@@ -21,6 +21,30 @@ export default class MediaBrokerClient {
     return unwrapResult(response.data);
   }
 
+  public async getMeetingHostId(meetingId: any): Promise<any> {
+    const response = await axios({
+      url: `${this._url}/meetings/${meetingId}/hostId`,
+      method: "get",
+      headers: {
+        "Content-Type": "application/json"
+      }
+    });
+
+    return unwrapResult(response.data);
+  }
+
+  public async getMeetingAttendees(meetingId: any): Promise<any> {
+    const response = await axios({
+      url: `${this._url}/meetings/${meetingId}/attendees`,
+      method: "get",
+      headers: {
+        "Content-Type": "application/json"
+      }
+    });
+
+    return unwrapResult(response.data);
+  }
+
   public async startMeeting(attendeeId: any): Promise<{ meetingId: any }> {
     const response = await axios({
       url: `${this._url}/meetings/start`,

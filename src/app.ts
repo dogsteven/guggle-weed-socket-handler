@@ -7,21 +7,51 @@ import { createClient } from "redis";
 import configuration from "./configuration";
 import ConnectionRepository from "./connection-repository";
 import { wrapResultAsync } from "./utils/result";
+import cors from "cors";
 
 (async () => {
   const application = express();
   const httpServer = createHttpServer(application);
-  const socketServer = new SocketServer(httpServer);
+  const socketServer = new SocketServer(httpServer, {
+    cors: {
+      origin: "http://localhost:3000",
+      methods: ["get", "post"],
+      allowedHeaders: ["x-username"],
+      credentials: true
+    }
+  });
   const mediaBrokerClient = new MediaBrokerClient();
   const connectionRepository = new ConnectionRepository();
   const redisSubscriber = createClient();
   await redisSubscriber.connect();
+
+  application.use(cors({
+    origin: "http://localhost:3000",
+    methods: ["get", "post"],
+    allowedHeaders: ["x-username"]
+  }))
 
   application.get("/meetings/:meetingId", async (request, response) => {
     response.json(await wrapResultAsync(async () => {
       const meetingId = request.params.meetingId;
 
       return await mediaBrokerClient.getMeetingInfo(meetingId);
+    }));
+  });
+
+  application.get("/meetings/:meetingId/hostId", async (request, response) => {
+    response.json(await wrapResultAsync(async () => {
+      const meetingId = request.params.meetingId;
+
+      return await mediaBrokerClient.getMeetingHostId(meetingId);
+    }));
+  });
+
+  application.get("/meetings/:meetingId/hostId", async (request, response) => {
+    response.json(await wrapResultAsync(async () => {
+      const meetingId = request.params.meetingId;
+
+      return await mediaBrokerClient.getMeetingAttendees(meetingId);
     }));
   });
 
