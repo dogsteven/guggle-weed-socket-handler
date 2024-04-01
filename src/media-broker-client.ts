@@ -196,6 +196,22 @@ export default class MediaBrokerClient {
     return unwrapResult(response.data);
   }
 
+  public async closeConsumer(meetingId: any, attendeeId: any, consumerId: any): Promise<any> {
+    const response = await axios({
+      url: `${this._url}/meetings/${meetingId}/closeConsumer`,
+      method: "post",
+      headers: {
+        "Content-Type": "application/json",
+        "x-username": attendeeId
+      },
+      data: {
+        consumerId: consumerId
+      }
+    });
+
+    return unwrapResult(response.data);
+  }
+
   public async pauseConsumer(meetingId: any, attendeeId: any, consumerId: any): Promise<any> {
     const response = await axios({
       url: `${this._url}/meetings/${meetingId}/pauseConsumer`,

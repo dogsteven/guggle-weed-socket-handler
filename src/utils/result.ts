@@ -16,10 +16,10 @@ export async function wrapResultAsync<T>(computation: () => Promise<T>): Promise
       status: "success",
       data: await computation()
     };
-  } catch (error) {
+  } catch (error: any) {
     return {
       status: "failed",
-      message: error  
+      message: error.message
     };
   }
 }
@@ -28,6 +28,6 @@ export function unwrapResult<T>(result: Result<T>): T {
   if (result.status === "success") {
     return result.data;
   } else {
-    throw result.message;
+    throw new Error(result.message);
   }
 }
