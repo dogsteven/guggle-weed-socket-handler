@@ -15,7 +15,7 @@ import { json } from "body-parser";
   const httpServer = createHttpServer(application);
   const socketServer = new SocketServer(httpServer, {
     cors: {
-      origin: "https://localhost:3000",
+      origin: "*",
       methods: ["get", "post"],
       allowedHeaders: ["x-username", "x-meeting-id"],
       credentials: true
@@ -29,7 +29,7 @@ import { json } from "body-parser";
   application.use(json());
 
   application.use(cors({
-    origin: "https://localhost:3000",
+    origin: "*",
     methods: ["get", "post"],
     allowedHeaders: ["x-username", "x-meeting-id"]
   }));
@@ -50,7 +50,7 @@ import { json } from "body-parser";
     }));
   });
 
-  application.get("/meetings/:meetingId/hostId", async (request, response) => {
+  application.get("/meetings/:meetingId/attendees", async (request, response) => {
     response.json(await wrapResultAsync(async () => {
       const meetingId = request.params.meetingId;
 
