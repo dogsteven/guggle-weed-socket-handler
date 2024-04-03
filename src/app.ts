@@ -161,7 +161,7 @@ import { json } from "body-parser";
         socket.join(meetingId);
         socket.data.joined = true;
 
-        socketServer.to(meetingId).emit("attendeeJoined", {
+        socket.to(meetingId).emit("attendeeJoined", {
           attendeeId: username
         });
   
