@@ -1,8 +1,10 @@
 export default class ConnectionRepository {
   private readonly _connections: Map<any, Map<any, any>>;
+  private readonly _hostIds: Map<any, any>;
 
   public constructor() {
     this._connections = new Map<any, Map<any, any>>();
+    this._hostIds = new Map<any, any>();
   }
 
   public getSocketId(meetingId: any, attendeeId: any): any {
@@ -19,16 +21,26 @@ export default class ConnectionRepository {
     return map.get(attendeeId);
   }
 
-  public openMeeting(meetingId: any) {
+  public getHostId(meetingId: any): any {
+    if (!this._hostIds.has(meetingId)) {
+      return null;
+    }
+
+    return this._hostIds.get(meetingId);
+  }
+
+  public openMeeting(meetingId: any, hostId: any) {
     if (this._connections.has(meetingId)) {
       return;
     }
 
     this._connections.set(meetingId, new Map<any, any>());
+    this._hostIds.set(meetingId, hostId);
   }
 
   public closeMeeting(meetingId: any) {
     this._connections.delete(meetingId);
+    this._hostIds.delete(meetingId);
   }
 
   public openAttendee(meetingId: any, attendeeId: any, socketId: any) {

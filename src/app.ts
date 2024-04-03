@@ -64,7 +64,7 @@ import { json } from "body-parser";
 
       const result = await mediaBrokerClient.startMeeting(username);
 
-      connectionRepository.openMeeting(result.meetingId);
+      connectionRepository.openMeeting(result.meetingId, username);
 
       return result;
     }));
@@ -99,6 +99,34 @@ import { json } from "body-parser";
           sender: username,
           message: message
         });
+      }
+    });
+
+    socket.on("requestAttention", () => {
+      if (socket.data.joined) {
+        const hostId = connectionRepository.getHostId(meetingId);
+      
+        if (hostId === username) {
+          socketServer.to(meetingId).emit("attentionAccepted", { attendeeId: username });
+        } else {
+          const hostSocketId = connectionRepository.getSocketId(meetingId, hostId);
+
+          if (hostSocketId) {
+            socketServer.to(hostSocketId).emit("attentionRequested", { attendeeId: username });
+          }
+        }
+      }
+    });
+
+    socket.on("acceptAttention", ({ attendeeId }) => {
+      if (socket.data.joined) {
+        const hostId = connectionRepository.getHostId(meetingId);
+
+        if (hostId !== username) {
+          return;
+        }
+
+        socketServer.to(meetingId).emit("attentionAccepted", { attendeeId });
       }
     });
 
