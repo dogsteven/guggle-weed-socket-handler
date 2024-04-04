@@ -102,23 +102,23 @@ import { json } from "body-parser";
       }
     });
 
-    socket.on("requestAttention", () => {
+    socket.on("requestPresentation", () => {
       if (socket.data.joined) {
         const hostId = connectionRepository.getHostId(meetingId);
       
         if (hostId === username) {
-          socketServer.to(meetingId).emit("attentionAccepted", { attendeeId: username });
+          socketServer.to(meetingId).emit("presentationAccepted", { attendeeId: username });
         } else {
           const hostSocketId = connectionRepository.getSocketId(meetingId, hostId);
 
           if (hostSocketId) {
-            socketServer.to(hostSocketId).emit("attentionRequested", { attendeeId: username });
+            socketServer.to(hostSocketId).emit("presentationRequested", { attendeeId: username });
           }
         }
       }
     });
 
-    socket.on("acceptAttention", ({ attendeeId }) => {
+    socket.on("acceptPresentation", ({ attendeeId }) => {
       if (socket.data.joined) {
         const hostId = connectionRepository.getHostId(meetingId);
 
@@ -126,7 +126,7 @@ import { json } from "body-parser";
           return;
         }
 
-        socketServer.to(meetingId).emit("attentionAccepted", { attendeeId });
+        socketServer.to(meetingId).emit("presentationAccepted", { attendeeId });
       }
     });
 
