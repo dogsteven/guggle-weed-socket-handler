@@ -34,19 +34,17 @@ import { json } from "body-parser";
     allowedHeaders: ["x-username", "x-meeting-id"]
   }));
 
-  application.get("/meetings/:meetingId", async (request, response) => {
-    response.json(await wrapResultAsync(async () => {
-      const meetingId = request.params.meetingId;
-
-      return await mediaBrokerClient.getMeetingInfo(meetingId);
-    }));
-  });
-
   application.get("/meetings/:meetingId/hostId", async (request, response) => {
     response.json(await wrapResultAsync(async () => {
       const meetingId = request.params.meetingId;
 
-      return await mediaBrokerClient.getMeetingHostId(meetingId);
+      const hostId = connectionRepository.getHostId(meetingId);
+
+      if (hostId == null) {
+        throw new Error(`There is no meeting with id ${meetingId}`);
+      }
+
+      return { hostId };
     }));
   });
 
@@ -62,7 +60,7 @@ import { json } from "body-parser";
     response.json(await wrapResultAsync(async () => {
       const username = request.headers["x-username"];
 
-      const result = await mediaBrokerClient.startMeeting(username);
+      const result = await mediaBrokerClient.startMeeting();
 
       connectionRepository.openMeeting(result.meetingId, username);
 
@@ -75,7 +73,11 @@ import { json } from "body-parser";
       const username = request.headers["x-username"];
       const meetingId = request.params.meetingId;
 
-      const result = await mediaBrokerClient.endMeeting(meetingId, username);
+      if (username !== connectionRepository.getHostId(meetingId)) {
+        throw new Error("You don't have permission to end this meeting");
+      }
+
+      const result = await mediaBrokerClient.endMeeting(meetingId);
 
       connectionRepository.closeMeeting(meetingId);
       socketServer.to(meetingId).emit("meetingEnded");
